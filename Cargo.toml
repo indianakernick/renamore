@@ -1,0 +1,8 @@
+[package]
+name = "safe-rename"
+version = "0.1.0"
+authors = ["Indiana Kernick <indiana.kernick@gmail.com>"]
+description = "Rename files without overwriting the destination and avoiding race conditions"
+edition = "2021"
+
+[dependencies]
