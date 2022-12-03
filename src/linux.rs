@@ -34,5 +34,20 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
 }
 
 pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
-    todo!()
+    // Not sure how to implement this.
+
+    // The man page for renameat2 says this:
+    //
+    //  - ext4 (Linux 3.15);
+    //  - btrfs, tmpfs, and cifs (Linux 3.17);
+    //  - xfs (Linux 4.0);
+    //  - Support for many other filesystems was added in Linux 4.9, including
+    //    ext2, minix, reiserfs, jfs, vfat, and bpf.
+    //
+    // statfs can be used to get the file system type.
+    // uname can be used to get the kernel version.
+    //
+    // Surely there's a more direct way!
+
+    Ok(true)
 }

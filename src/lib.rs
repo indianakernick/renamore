@@ -39,7 +39,17 @@ mod macos;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use macos as sys;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "ios")))]
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "windows")]
+use windows as sys;
+
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows"
+)))]
 mod sys {
     use std::path::Path;
     use std::io::Result;
