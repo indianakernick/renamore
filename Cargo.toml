@@ -1,8 +1,9 @@
 [package]
-name = "safe-rename"
+name = "rename-ext"
 version = "0.1.0"
 authors = ["Indiana Kernick <indiana.kernick@gmail.com>"]
-description = "Rename files without overwriting the destination and avoiding race conditions"
+description = "Extensions to file renaming that expose capabilities of the platform"
 edition = "2021"
 
-[dependencies]
+[dev-dependencies]
+tempfile = "3"
