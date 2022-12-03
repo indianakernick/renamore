@@ -2,7 +2,7 @@
 name = "rename-ext"
 version = "0.1.0"
 authors = ["Indiana Kernick <indiana.kernick@gmail.com>"]
-description = "Extensions to file renaming that expose capabilities of the platform"
+description = "File renaming extensions"
 edition = "2021"
 
 [dev-dependencies]
