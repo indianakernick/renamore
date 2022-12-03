@@ -15,7 +15,7 @@ use std::io::Result;
 ///
 /// [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
-    imp::rename_exclusive(from.as_ref(), to.as_ref())
+    sys::rename_exclusive(from.as_ref(), to.as_ref())
 }
 
 // Is "atomic" the right word here?
@@ -26,52 +26,16 @@ pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Resul
 /// This will return `true` if the OS exposes the necessary API and the file
 /// system being used at the given path supports it.
 pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
-    imp::rename_exclusive_is_atomic(path.as_ref())
+    sys::rename_exclusive_is_atomic(path.as_ref())
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-mod imp {
-    use std::path::Path;
-    use std::io::Result;
-    use std::ffi::{c_char, c_int, c_uint, CString};
-    use std::os::unix::prelude::OsStrExt;
-
-    // Supported on:
-    //  - macOS 10.12
-    //  - iOS 10.0
-    //  - tvOS 10.0
-    //  - watchOS 3.0
-
-    extern "C" {
-        fn renamex_np(from: *const c_char, to: *const c_char, flags: c_uint) -> c_int;
-    }
-
-    // const RENAME_SWAP: c_uint = 2;
-    const RENAME_EXCL: c_uint = 4;
-
-    pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
-        let from_str = CString::new(from.as_os_str().as_bytes())?;
-        let to_str = CString::new(to.as_os_str().as_bytes())?;
-        let ret = unsafe {
-            renamex_np(from_str.as_ptr(), to_str.as_ptr(), RENAME_EXCL)
-        };
-
-        if ret == -1 {
-            Err(std::io::Error::last_os_error())
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
-        // getattrlist
-        // VOL_CAP_INT_RENAME_EXCL
-        todo!()
-    }
-}
+mod macos;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+use macos as sys;
 
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-mod imp {
+mod sys {
     use std::path::Path;
     use std::io::Result;
 
@@ -126,7 +90,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_exclusive_abs() -> Result<(), Box<dyn std::error::Error>> {
+    fn rename_exclusive_abs() -> std::io::Result<()> {
         let dir = tempfile::tempdir()?;
 
         let path_a = dir.path().join("a");
@@ -160,7 +124,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_exclusive_rel() -> Result<(), Box<dyn std::error::Error>> {
+    fn rename_exclusive_rel() -> std::io::Result<()> {
         let dir = tempfile::tempdir()?;
         let _curr = CurrentDirectory::set(dir.path())?;
 
@@ -205,6 +169,19 @@ mod tests {
             assert!(!path_b.try_exists()?);
             assert!(path_up_b.try_exists()?);
             assert_eq!(std::fs::read_to_string(&path_up_b)?, "a");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn rename_exclusive_is_atomic() -> std::io::Result<()> {
+        let is_atomic = super::rename_exclusive_is_atomic(std::env::current_dir()?)?;
+
+        if is_atomic {
+            println!("rename_exclusive is atomic");
+        } else {
+            println!("rename_exclusive is not atomic");
         }
 
         Ok(())
