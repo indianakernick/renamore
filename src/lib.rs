@@ -29,12 +29,17 @@ pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
     sys::rename_exclusive_is_atomic(path.as_ref())
 }
 
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as sys;
+
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod macos;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use macos as sys;
 
-#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "ios")))]
 mod sys {
     use std::path::Path;
     use std::io::Result;
