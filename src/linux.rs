@@ -79,6 +79,29 @@ fn get_kernel_version() -> Result<KernelVersion> {
     Ok(KernelVersion { major, minor, patch })
 }
 
+#[repr(C)]
+struct statfs {
+    f_type: c_uint,
+    // We don't care about the rest.
+    padding: [u64; 16],
+}
+
+extern "C" {
+    fn statfs(path: *const c_char, buf: *mut statfs) -> c_int;
+}
+
+fn get_filesystem_type(path: &Path) -> Result<u32> {
+    let path_str = CString::new(path.as_os_str().as_bytes())?;
+    let mut buf = std::mem::MaybeUninit::<statfs>::uninit();
+    let ret = unsafe { statfs(path_str.as_ptr(), buf.as_mut_ptr()) };
+
+    if ret == -1 {
+        return Err(std::io::Error::last_os_error());
+    }
+
+    Ok(unsafe { buf.assume_init() }.f_type)
+}
+
 pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
     // Not sure how to implement this.
 
