@@ -3,7 +3,7 @@ use std::io::Result;
 use std::ffi::{c_char, c_int, c_uint, CString};
 use std::os::unix::prelude::OsStrExt;
 
-// Supported on Linux 3.15 with glibc 2.38
+// Supported on Linux 3.15
 
 extern "C" {
     fn renameat2(
@@ -33,13 +33,16 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     }
 }
 
-struct KernelVersion {
-    major: u16,
-    minor: u16,
-    patch: u16,
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct Version(u64);
+
+impl Version {
+    const fn new(major: u16, minor: u16, patch: u16) -> Self {
+        Self(((major as u64) << 32) | ((minor as u64) << 16) | patch as u64)
+    }
 }
 
-fn get_kernel_version() -> Result<KernelVersion> {
+fn get_kernel_version() -> Result<Version> {
     let invalid = std::io::ErrorKind::InvalidData;
     let version = std::fs::read_to_string("/proc/version")?;
     let version_bytes = version.as_bytes();
@@ -76,7 +79,7 @@ fn get_kernel_version() -> Result<KernelVersion> {
     let patch = u16::from_str_radix(&version[patch_begin..patch_end], 10)
         .map_err(|_| invalid)?;
 
-    Ok(KernelVersion { major, minor, patch })
+    Ok(Version::new(major, minor, patch))
 }
 
 #[repr(C)]
@@ -102,8 +105,33 @@ fn get_filesystem_type(path: &Path) -> Result<u32> {
     Ok(unsafe { buf.assume_init() }.f_type)
 }
 
-pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
-    // Not sure how to implement this.
+const FS_EXT4: c_uint = 0xef53; // EXT4_SUPER_MAGIC
+const FS_BTRFS: [c_uint; 2] = [
+    0x9123683e, // BTRFS_SUPER_MAGIC
+    0x73727279, // BTRFS_TEST_MAGIC
+];
+const FS_TMPFS: c_uint = 0x01021994; // TMPFS_MAGIC
+const FS_CIFS: c_uint = 0xff534d42; // CIFS_MAGIC_NUMBER
+const FS_XFS: c_uint = 0x58465342; // XFS_SUPER_MAGIC
+// EXT2_SUPER_MAGIC is the same as EXT4_SUPER_MAGIC.
+const FS_EXT2: c_uint = 0xef51; // EXT2_OLD_SUPER_MAGIC
+const FS_MINIX: [c_uint; 5] = [
+    0x137f, // MINIX_SUPER_MAGIC
+    0x138f, // MINIX_SUPER_MAGIC2
+    0x2468, // MINIX2_SUPER_MAGIC
+    0x2478, // MINIX2_SUPER_MAGIC2
+    0x4d5a, // MINIX3_SUPER_MAGIC
+];
+const FS_REISERFS: c_uint = 0x52654973; // REISERFS_SUPER_MAGIC
+const FS_JFS: c_uint = 0x3153464a; // JFS_SUPER_MAGIC
+// vfat was discovered experimentally. It doesn't appear in the man page or the
+// magic.h header.
+const FS_VFAT: c_uint = 0x7c7c6673;
+const FS_BPF: c_uint = 0xcafe4a11; // BPF_FS_MAGIC
+
+pub fn rename_exclusive_is_atomic(path: &Path) -> Result<bool> {
+    let kernel = get_kernel_version()?;
+    let fs = get_filesystem_type(path)?;
 
     // The man page for renameat2 says this:
     //
@@ -112,11 +140,32 @@ pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
     //  - xfs (Linux 4.0);
     //  - Support for many other filesystems was added in Linux 4.9, including
     //    ext2, minix, reiserfs, jfs, vfat, and bpf.
-    //
-    // statfs can be used to get the file system type.
-    // uname can be used to get the kernel version.
-    //
-    // Surely there's a more direct way!
 
-    Ok(true)
+    if kernel >= Version::new(3, 15, 0) {
+        if fs == FS_EXT4 {
+            return Ok(true);
+        }
+    }
+
+    if kernel >= Version::new(3, 17, 0) {
+        if FS_BTRFS.contains(&fs) || [FS_TMPFS, FS_CIFS].contains(&fs) {
+            return Ok(true);
+        }
+    }
+
+    if kernel >= Version::new(4, 0, 0) {
+        if fs == FS_XFS {
+            return Ok(true);
+        }
+    }
+
+    if kernel >= Version::new(4, 9, 0) {
+        // The man page says "including" which implies that this is not an
+        // exhaustive list.
+        if [FS_EXT2, FS_REISERFS, FS_JFS, FS_VFAT, FS_BPF].contains(&fs) || FS_MINIX.contains(&fs) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
