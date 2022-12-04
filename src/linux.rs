@@ -33,6 +33,52 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     }
 }
 
+struct KernelVersion {
+    major: u16,
+    minor: u16,
+    patch: u16,
+}
+
+fn get_kernel_version() -> Result<KernelVersion> {
+    let invalid = std::io::ErrorKind::InvalidData;
+    let version = std::fs::read_to_string("/proc/version")?;
+    let version_bytes = version.as_bytes();
+
+    let major_begin = version_bytes.iter()
+        .position(|c| c.is_ascii_digit())
+        .ok_or(invalid)?;
+    let major_end = major_begin + version_bytes[major_begin..].iter()
+        .position(|c| *c == b'.')
+        .ok_or(invalid)?;
+
+    if major_end == version_bytes.len() - 1 {
+        return Err(invalid.into());
+    }
+
+    let minor_begin = major_end + 1;
+    let minor_end = minor_begin + version_bytes[minor_begin..].iter()
+        .position(|c| *c == b'.')
+        .ok_or(invalid)?;
+
+    if minor_end == version_bytes.len() - 1 {
+        return Err(invalid.into());
+    }
+
+    let patch_begin = minor_end + 1;
+    let patch_end = patch_begin + version_bytes[patch_begin..].iter()
+        .position(|c| !c.is_ascii_digit())
+        .ok_or(invalid)?;
+
+    let major = u16::from_str_radix(&version[major_begin..major_end], 10)
+        .map_err(|_| invalid)?;
+    let minor = u16::from_str_radix(&version[minor_begin..minor_end], 10)
+        .map_err(|_| invalid)?;
+    let patch = u16::from_str_radix(&version[patch_begin..patch_end], 10)
+        .map_err(|_| invalid)?;
+
+    Ok(KernelVersion { major, minor, patch })
+}
+
 pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
     // Not sure how to implement this.
 
