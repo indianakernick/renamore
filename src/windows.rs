@@ -33,8 +33,9 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
 }
 
 pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
-    // No clue how to implement this. Can't seem to find definitive evidence
-    // that MoveFileExW is ever atomic.
+    // Can't seem to find definitive evidence that MoveFileExW is ever atomic.
+    // Also, the implementation of this might be similar to the Linux one where
+    // we check the OS version and file system and work it out from that.
 
     Ok(true)
 }
