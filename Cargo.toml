@@ -1,8 +1,8 @@
 [package]
-name = "rename-ext"
+name = "renamore"
 version = "0.1.0"
 authors = ["Indiana Kernick <indiana.kernick@gmail.com>"]
-description = "File renaming extensions"
+description = "More ways to rename files"
 edition = "2021"
 
 [dev-dependencies]

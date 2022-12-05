@@ -1,9 +1,9 @@
 use std::path::Path;
-use std::io::Result;
+use std::io::{Error, ErrorKind, Result};
 use std::ffi::{c_char, c_int, c_uint, CString};
 use std::os::unix::prelude::OsStrExt;
 
-// Supported on Linux 3.15
+// Linking will fail on Linux versions prior to 3.15
 
 extern "C" {
     fn renameat2(
@@ -27,7 +27,7 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     };
 
     if ret == -1 {
-        Err(std::io::Error::last_os_error())
+        Err(Error::last_os_error())
     } else {
         Ok(())
     }
@@ -43,41 +43,40 @@ impl Version {
 }
 
 fn get_kernel_version() -> Result<Version> {
-    let invalid = std::io::ErrorKind::InvalidData;
     let version = std::fs::read_to_string("/proc/version")?;
     let version_bytes = version.as_bytes();
 
     let major_begin = version_bytes.iter()
         .position(|c| c.is_ascii_digit())
-        .ok_or(invalid)?;
+        .ok_or(ErrorKind::InvalidData)?;
     let major_end = major_begin + version_bytes[major_begin..].iter()
         .position(|c| *c == b'.')
-        .ok_or(invalid)?;
+        .ok_or(ErrorKind::InvalidData)?;
 
     if major_end == version_bytes.len() - 1 {
-        return Err(invalid.into());
+        return Err(ErrorKind::InvalidData.into());
     }
 
     let minor_begin = major_end + 1;
     let minor_end = minor_begin + version_bytes[minor_begin..].iter()
         .position(|c| *c == b'.')
-        .ok_or(invalid)?;
+        .ok_or(ErrorKind::InvalidData)?;
 
     if minor_end == version_bytes.len() - 1 {
-        return Err(invalid.into());
+        return Err(ErrorKind::InvalidData.into());
     }
 
     let patch_begin = minor_end + 1;
     let patch_end = patch_begin + version_bytes[patch_begin..].iter()
         .position(|c| !c.is_ascii_digit())
-        .ok_or(invalid)?;
+        .ok_or(ErrorKind::InvalidData)?;
 
     let major = u16::from_str_radix(&version[major_begin..major_end], 10)
-        .map_err(|_| invalid)?;
+        .map_err(|_| ErrorKind::InvalidData)?;
     let minor = u16::from_str_radix(&version[minor_begin..minor_end], 10)
-        .map_err(|_| invalid)?;
+        .map_err(|_| ErrorKind::InvalidData)?;
     let patch = u16::from_str_radix(&version[patch_begin..patch_end], 10)
-        .map_err(|_| invalid)?;
+        .map_err(|_| ErrorKind::InvalidData)?;
 
     Ok(Version::new(major, minor, patch))
 }
@@ -99,7 +98,7 @@ fn get_filesystem_type(path: &Path) -> Result<u32> {
     let ret = unsafe { statfs(path_str.as_ptr(), buf.as_mut_ptr()) };
 
     if ret == -1 {
-        return Err(std::io::Error::last_os_error());
+        return Err(Error::last_os_error());
     }
 
     Ok(unsafe { buf.assume_init() }.f_type)

@@ -1,3 +1,14 @@
+//! More ways to rename files.
+//!
+//! The Rust standard library offers [`std::fs::rename`] for renaming files.
+//! Sometimes, that's not enough. Consider the example of renaming a file but
+//! aborting the operation if something already exists at the destination path.
+//! That can be achieved using the Rust standard library but ensuring that the
+//! operation is atomic can only be achieved using platform-specific APIs.
+//! Without using platform-specific APIs, a [TOCTTOU] bug can be introduced.
+//!
+//! [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
+
 use std::path::Path;
 use std::io::{Error, ErrorKind, Result};
 
@@ -11,10 +22,9 @@ use std::io::{Error, ErrorKind, Result};
 /// wrong moment and being overwritten.
 ///
 /// Before this function can be called, support should be checked with
-/// [`rename_exclusive_is_supported`]. If this
-/// function is called when it is not supported, then it may behave the same as
-/// `rename`, or it might non-atomically try to avoid overwriting `to`, or it
-/// might crash.
+/// [`rename_exclusive_is_supported`]. If this function is called when it is not
+/// supported, then it may behave the same as `rename`, or it might
+/// non-atomically try to avoid overwriting `to`, or it might crash.
 ///
 /// [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
@@ -33,8 +43,9 @@ pub fn rename_exclusive_is_supported<P: AsRef<Path>>(path: P) -> Result<bool> {
 
 /// A non-atomic version of [`rename_exclusive`].
 ///
-/// This is supported on all platforms but has the problem that this crate tries
-/// to solve.
+/// This is supported on all platforms but of course this operation is not
+/// atomic. This is meant to be used as a fallback for when `rename_exclusive`
+/// is not supported.
 pub fn rename_exclusive_non_atomic<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
     if to.as_ref().try_exists()? {
         return Err(Error::from(ErrorKind::AlreadyExists));
@@ -96,14 +107,15 @@ mod sys {
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::{Component, Path, PathBuf};
+    use std::io::{ErrorKind, Result};
 
     struct CurrentDirectory {
         previous: PathBuf,
     }
 
     impl CurrentDirectory {
-        fn set<T: AsRef<Path>>(to: T) -> std::io::Result<Self> {
+        fn set<T: AsRef<Path>>(to: T) -> Result<Self> {
             let previous = std::env::current_dir()?;
             std::env::set_current_dir(to)?;
             Ok(Self { previous })
@@ -116,9 +128,9 @@ mod tests {
         }
     }
 
-    fn is_exists_error(result: std::io::Result<()>) -> bool {
+    fn is_exists_error(result: Result<()>) -> bool {
         if let Err(e) = result {
-            e.kind() == std::io::ErrorKind::AlreadyExists
+            e.kind() == ErrorKind::AlreadyExists
         } else {
             false
         }
@@ -126,13 +138,13 @@ mod tests {
 
     fn parent_join(path: &Path) -> PathBuf {
         let mut parent = PathBuf::new();
-        parent.push(std::path::Component::ParentDir);
+        parent.push(Component::ParentDir);
         parent.push(path);
         parent
     }
 
     #[test]
-    fn rename_exclusive_abs() -> std::io::Result<()> {
+    fn rename_exclusive_abs() -> Result<()> {
         let dir = tempfile::tempdir()?;
 
         let path_a = dir.path().join("a");
@@ -166,7 +178,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_exclusive_rel() -> std::io::Result<()> {
+    fn rename_exclusive_rel() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let _curr = CurrentDirectory::set(dir.path())?;
 
@@ -217,7 +229,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_exclusive_is_supported() -> std::io::Result<()> {
+    fn rename_exclusive_is_supported() -> Result<()> {
         let is_supported = super::rename_exclusive_is_supported(std::env::current_dir()?)?;
 
         if is_supported {

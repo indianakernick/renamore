@@ -1,11 +1,11 @@
 #![allow(non_camel_case_types)]
 
 use std::path::Path;
-use std::io::Result;
+use std::io::{Error, Result};
 use std::ffi::{c_char, c_int, c_uint, CString, c_ulong};
 use std::os::unix::prelude::OsStrExt;
 
-// Supported on Darwin 16:
+// Linking will fail on Darwin versions prior to 16 which corresponds to these:
 //  - macOS 10.12
 //  - iOS 10.0
 //  - tvOS 10.0
@@ -26,7 +26,7 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     };
 
     if ret == -1 {
-        Err(std::io::Error::last_os_error())
+        Err(Error::last_os_error())
     } else {
         Ok(())
     }
@@ -99,7 +99,7 @@ pub fn rename_exclusive_is_supported(path: &Path) -> Result<bool> {
     };
 
     if ret == -1 {
-        return Err(std::io::Error::last_os_error());
+        return Err(Error::last_os_error());
     }
 
     let attrs = unsafe { buf.assume_init_ref() };

@@ -3,6 +3,8 @@ use std::io::Result;
 use std::ffi::{c_int, c_ulong, OsStr};
 use std::os::windows::prelude::OsStrExt;
 
+// Linking will fail on Windows versions prior to XP.
+
 extern "C" {
     fn MoveFileExW(
         lpExistingFileName: *const u16,
