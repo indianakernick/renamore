@@ -3,6 +3,13 @@ name = "renamore"
 version = "0.1.0"
 authors = ["Indiana Kernick <indiana.kernick@gmail.com>"]
 description = "More ways to rename files"
+categories = ["filesystem"]
+keywords = ["rename", "file"]
+homepage = "https://github.com/indianakernick/renamore"
+repository = "https://github.com/indianakernick/renamore"
+documentation = "https://docs.rs/renamore"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [dev-dependencies]

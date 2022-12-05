@@ -6,6 +6,7 @@
 //! That can be achieved using the Rust standard library but ensuring that the
 //! operation is atomic can only be achieved using platform-specific APIs.
 //! Without using platform-specific APIs, a [TOCTTOU] bug can be introduced.
+//! This library aims to provide a cross-platform interface to these APIs.
 //!
 //! [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 
