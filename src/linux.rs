@@ -129,7 +129,7 @@ const FS_JFS: c_uint = 0x3153464a; // JFS_SUPER_MAGIC
 const FS_VFAT: c_uint = 0x7c7c6673;
 const FS_BPF: c_uint = 0xcafe4a11; // BPF_FS_MAGIC
 
-pub fn rename_exclusive_is_atomic(path: &Path) -> Result<bool> {
+pub fn rename_exclusive_is_supported(path: &Path) -> Result<bool> {
     let kernel = get_kernel_version()?;
     let fs = get_filesystem_type(path)?;
 

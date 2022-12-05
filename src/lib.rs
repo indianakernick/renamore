@@ -1,32 +1,63 @@
 use std::path::Path;
-use std::io::Result;
+use std::io::{Error, ErrorKind, Result};
 
 /// Rename `from` to `to` without overwriting `to` if it exists.
 ///
-/// This operation is atomic on platforms that support it. This avoids a
-/// potential [TOCTTOU] bug that could arise from first checking for existence,
-/// and then renaming.
+/// Unlike a combination of [`try_exists`](std::path::Path::try_exists) and
+/// [`rename`](std::fs::rename), this operation is atomic on platforms that
+/// support it. A potential [TOCTTOU] bug is avoided. If `to` exists, then
+/// [`ErrorKind::AlreadyExists`](std::io::ErrorKind::AlreadyExists) will be
+/// returned. There is no possibility of `to` coming into existence at just the
+/// wrong moment and being overwritten.
 ///
-/// If the platform doesn't expose an API for performing the operation
-/// atomically, then a non-atomic fallback will be used. Even if the API is
-/// exposed, the operation might still be non-atomic if the file system doesn't
-/// support it. See [`rename_exclusive_is_atomic`](rename_exclusive_is_atomic)
-/// to check for atomicity.
+/// Before this function can be called, support should be checked with
+/// [`rename_exclusive_is_supported`]. If this
+/// function is called when it is not supported, then it may behave the same as
+/// `rename`, or it might non-atomically try to avoid overwriting `to`, or it
+/// might crash.
 ///
 /// [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
     sys::rename_exclusive(from.as_ref(), to.as_ref())
 }
 
-// Is "atomic" the right word here?
-
-/// Determine whether [`rename_exclusive`](rename_exclusive) is an atomic
-/// operation.
+/// Determine whether [`rename_exclusive`] is supported.
 ///
-/// This will return `true` if the OS exposes the necessary API and the file
-/// system being used at the given path supports it.
-pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
-    sys::rename_exclusive_is_atomic(path.as_ref())
+/// Support depends on whether the necessary functions are available at
+/// link-time, and the OS implements the operation for the file system of the
+/// given path. `rename_exclusive` should not be called if this function returns
+/// `false`.
+pub fn rename_exclusive_is_supported<P: AsRef<Path>>(path: P) -> Result<bool> {
+    sys::rename_exclusive_is_supported(path.as_ref())
+}
+
+/// A non-atomic version of [`rename_exclusive`].
+///
+/// This is supported on all platforms but has the problem that this crate tries
+/// to solve.
+pub fn rename_exclusive_non_atomic<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
+    if to.as_ref().try_exists()? {
+        return Err(Error::from(ErrorKind::AlreadyExists));
+    }
+
+    std::fs::rename(from, to)
+}
+
+/// Check whether [`rename_exclusive`] is supported and call
+/// it if so, otherwise fall back on [`rename_exclusive_non_atomic`].
+///
+/// Checking whether the operation is supported may not be particularly fast.
+/// When doing multiple renames under consistent conditions (same OS, same file
+/// system), it may be more efficient to check for support once using
+/// [`rename_exclusive_is_supported`] and then choose which function to use for
+/// the renames.
+pub fn rename_exclusive_checked<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
+    // Probably need to check if `from` and `to` are on the same volume.
+    if sys::rename_exclusive_is_supported(from.as_ref())? {
+        sys::rename_exclusive(from.as_ref(), to.as_ref())
+    } else {
+        rename_exclusive_non_atomic(from, to)
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -52,17 +83,13 @@ use windows as sys;
 )))]
 mod sys {
     use std::path::Path;
-    use std::io::Result;
+    use std::io::{Error, ErrorKind, Result};
 
     pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
-        if to.try_exists()? {
-            return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
-        }
-
-        std::fs::rename(from, to)
+        panic!("rename_exclusive is not supported on this platform");
     }
 
-    pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
+    pub fn rename_exclusive_is_supported(_path: &Path) -> Result<bool> {
         Ok(false)
     }
 }
@@ -190,13 +217,13 @@ mod tests {
     }
 
     #[test]
-    fn rename_exclusive_is_atomic() -> std::io::Result<()> {
-        let is_atomic = super::rename_exclusive_is_atomic(std::env::current_dir()?)?;
+    fn rename_exclusive_is_supported() -> std::io::Result<()> {
+        let is_supported = super::rename_exclusive_is_supported(std::env::current_dir()?)?;
 
-        if is_atomic {
-            println!("rename_exclusive is atomic");
+        if is_supported {
+            println!("rename_exclusive is supported");
         } else {
-            println!("rename_exclusive is not atomic");
+            println!("rename_exclusive is not supported");
         }
 
         Ok(())

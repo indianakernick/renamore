@@ -5,7 +5,7 @@ use std::io::Result;
 use std::ffi::{c_char, c_int, c_uint, CString, c_ulong};
 use std::os::unix::prelude::OsStrExt;
 
-// Supported on:
+// Supported on Darwin 16:
 //  - macOS 10.12
 //  - iOS 10.0
 //  - tvOS 10.0
@@ -75,7 +75,7 @@ extern "C" {
     ) -> c_int;
 }
 
-pub fn rename_exclusive_is_atomic(path: &Path) -> Result<bool> {
+pub fn rename_exclusive_is_supported(path: &Path) -> Result<bool> {
     let path_str = CString::new(path.as_os_str().as_bytes())?;
     let mut list = attrlist {
         bitmapcount: ATTR_BIT_MAP_COUNT,

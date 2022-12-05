@@ -32,10 +32,8 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     }
 }
 
-pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
-    // Can't seem to find definitive evidence that MoveFileExW is ever atomic.
-    // Also, the implementation of this might be similar to the Linux one where
-    // we check the OS version and file system and work it out from that.
-
+pub fn rename_exclusive_is_supported(_path: &Path) -> Result<bool> {
+    // It's supported if the linker doesn't complain. Whether it's actually
+    // atomic or not is a more difficult question to answer.
     Ok(true)
 }
