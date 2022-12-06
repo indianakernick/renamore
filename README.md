@@ -11,6 +11,7 @@ Without using platform-specific APIs, a [TOCTTOU] bug can be introduced.
 This library aims to provide a cross-platform interface to these APIs.
 
 [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
+[`std::fs::rename`]: https://doc.rust-lang.org/std/fs/fn.rename.html
 
 ## License
 
