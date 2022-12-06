@@ -9,11 +9,77 @@
 //! This library aims to provide a cross-platform interface to these APIs.
 //!
 //! [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
+//!
+//! ## Example
+//!
+//! Renaming a file without the possibility of accidentally overwriting anything
+//! can be done using [`rename_exclusive`].
+//!
+//! ```no_run
+//! use std::io::Result;
+//! use std::path::PathBuf;
+//!
+//! fn main() -> Result<()> {
+//!     let from = PathBuf::from("old.txt");
+//!     let to = PathBuf::from("new.txt");
+//!
+//!     renamore::rename_exclusive(&from, &to)
+//! }
+//! ```
+//!
+//! It should be noted that this feature is not supported by all combinations of
+//! operating system and file system. Support can be checked by calling
+//! [`rename_exclusive_is_supported`]. If the feature is not supported, then
+//! [`rename_exclusive_non_atomic`] can be used. As the same suggests, this is a
+//! non-atomic version of `rename_exclusive`.
+//!
+//! ```no_run
+//! use std::io::Result;
+//! use std::path::PathBuf;
+//!
+//! fn main() -> Result<()> {
+//!     let from = PathBuf::from("old.txt");
+//!     let to = PathBuf::from("new.txt");
+//!
+//!     // Checking if rename_exclusive is supported by the current OS version
+//!     // using the file system of the current directory.
+//!     if renamore::rename_exclusive_is_supported(".") {
+//!         // It's supported!
+//!         // `new.txt` will definitely not be overwritten.
+//!         renamore::rename_exclusive(&from, &to)
+//!     } else {
+//!         // Oh no!
+//!         // `new.txt` will probably not be overwritten.
+//!         renamore::rename_exclusive_non_atomic(&from, &to)
+//!     }
+//! }
+//! ```
+//!
+//! Doing this check can be a little bit verbose. For this reason, there is
+//! [`rename_exclusive_checked`] which will check for support and switch between
+//! the atomic and non-atomic implementations.
+//!
+//! ```no_run
+//! use std::io::Result;
+//! use std::path::PathBuf;
+//!
+//! fn main() -> Result<()> {
+//!     let from = PathBuf::from("old.txt");
+//!     let to = PathBuf::from("new.txt");
+//!
+//!     renamore::rename_exclusive_checked(&from, &to)
+//! }
+//! ```
+//!
+//! For doing a bulk-rename rather than a one-off, it may be more efficient to
+//! do the check for support manually rather than using
+//! `rename_exclusive_checked`. That would mean doing the check once rather than
+//! for every rename.
 
 use std::path::Path;
 use std::io::{Error, ErrorKind, Result};
 
-/// Rename `from` to `to` without overwriting `to` if it exists.
+/// Rename a file without overwriting the destination path if it exists.
 ///
 /// Unlike a combination of [`try_exists`](std::path::Path::try_exists) and
 /// [`rename`](std::fs::rename), this operation is atomic on platforms that
@@ -37,7 +103,7 @@ pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Resul
 /// Support depends on whether the necessary functions are available at
 /// link-time, and the OS implements the operation for the file system of the
 /// given path. `rename_exclusive` should not be called if this function returns
-/// `false`.
+/// `Ok(false)`.
 pub fn rename_exclusive_is_supported<P: AsRef<Path>>(path: P) -> Result<bool> {
     sys::rename_exclusive_is_supported(path.as_ref())
 }
