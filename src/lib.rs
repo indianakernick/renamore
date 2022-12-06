@@ -1,5 +1,7 @@
 //! More ways to rename files.
 //!
+//! ## Overview
+//!
 //! The Rust standard library offers [`std::fs::rename`] for renaming files.
 //! Sometimes, that's not enough. Consider the example of renaming a file but
 //! aborting the operation if something already exists at the destination path.
@@ -43,7 +45,7 @@
 //!
 //!     // Checking if rename_exclusive is supported by the current OS version
 //!     // using the file system of the current directory.
-//!     if renamore::rename_exclusive_is_supported(".") {
+//!     if renamore::rename_exclusive_is_supported(".")? {
 //!         // It's supported!
 //!         // `new.txt` will definitely not be overwritten.
 //!         renamore::rename_exclusive(&from, &to)
@@ -143,9 +145,9 @@ mod linux;
 #[cfg(target_os = "linux")]
 use linux as sys;
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(target_vendor = "apple")]
 mod macos;
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(target_vendor = "apple")]
 use macos as sys;
 
 #[cfg(target_os = "windows")]
@@ -155,9 +157,8 @@ use windows as sys;
 
 #[cfg(not(any(
     target_os = "linux",
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows"
+    target_vendor = "apple",
+    target_os = "windows",
 )))]
 mod sys {
     use std::path::Path;

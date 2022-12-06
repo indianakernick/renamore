@@ -2,6 +2,8 @@
 
 More ways to rename files.
 
+## Overview
+
 The Rust standard library offers [`std::fs::rename`] for renaming files.
 Sometimes, that's not enough. Consider the example of renaming a file but
 aborting the operation if something already exists at the destination path.
@@ -51,7 +53,7 @@ fn main() -> Result<()> {
 
     // Checking if rename_exclusive is supported by the current OS version
     // using the file system of the current directory.
-    if renamore::rename_exclusive_is_supported(".") {
+    if renamore::rename_exclusive_is_supported(".")? {
         // It's supported!
         // `new.txt` will definitely not be overwritten.
         renamore::rename_exclusive(&from, &to)
