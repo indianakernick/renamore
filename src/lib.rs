@@ -15,7 +15,10 @@
 //! ## Example
 //!
 //! Renaming a file without the possibility of accidentally overwriting anything
-//! can be done using [`rename_exclusive`].
+//! can be done using [`rename_exclusive`]. It should be noted that this feature
+//! is not supported by all combinations of operation system and file system.
+//! The return value will indicate whether the operation was performed
+//! atomically or whether a non-atomic fallback was used.
 //!
 //! ```no_run
 //! use std::io::Result;
@@ -25,119 +28,82 @@
 //!     let from = PathBuf::from("old.txt");
 //!     let to = PathBuf::from("new.txt");
 //!
-//!     renamore::rename_exclusive(&from, &to)
-//! }
-//! ```
-//!
-//! It should be noted that this feature is not supported by all combinations of
-//! operating system and file system. Support can be checked by calling
-//! [`rename_exclusive_is_supported`]. If the feature is not supported, then
-//! [`rename_exclusive_non_atomic`] can be used. As the same suggests, this is a
-//! non-atomic version of `rename_exclusive`.
-//!
-//! ```no_run
-//! use std::io::Result;
-//! use std::path::PathBuf;
-//!
-//! fn main() -> Result<()> {
-//!     let from = PathBuf::from("old.txt");
-//!     let to = PathBuf::from("new.txt");
-//!
-//!     // Checking if rename_exclusive is supported by the current OS version
-//!     // using the file system of the current directory.
-//!     if renamore::rename_exclusive_is_supported(".")? {
-//!         // It's supported!
+//!     if renamore::rename_exclusive(&from, &to)? {
 //!         // `new.txt` will definitely not be overwritten.
-//!         renamore::rename_exclusive(&from, &to)
+//!         println!("The operation was atomic");
 //!     } else {
-//!         // Oh no!
 //!         // `new.txt` will probably not be overwritten.
-//!         renamore::rename_exclusive_non_atomic(&from, &to)
+//!         println!("The operation was not atomic");
 //!     }
+//!
+//!     Ok(())
 //! }
 //! ```
-//!
-//! Doing this check can be a little bit verbose. For this reason, there is
-//! [`rename_exclusive_checked`] which will check for support and switch between
-//! the atomic and non-atomic implementations.
-//!
-//! ```no_run
-//! use std::io::Result;
-//! use std::path::PathBuf;
-//!
-//! fn main() -> Result<()> {
-//!     let from = PathBuf::from("old.txt");
-//!     let to = PathBuf::from("new.txt");
-//!
-//!     renamore::rename_exclusive_checked(&from, &to)
-//! }
-//! ```
-//!
-//! For doing a bulk-rename rather than a one-off, it may be more efficient to
-//! do the check for support manually rather than using
-//! `rename_exclusive_checked`. That would mean doing the check once rather than
-//! for every rename.
 
 use std::path::Path;
-use std::io::{Error, ErrorKind, Result};
+use std::io::Result;
 
 /// Rename a file without overwriting the destination path if it exists.
 ///
-/// Unlike a combination of [`try_exists`](std::path::Path::try_exists) and
-/// [`rename`](std::fs::rename), this operation is atomic on platforms that
-/// support it. A potential [TOCTTOU] bug is avoided. If `to` exists, then
-/// [`ErrorKind::AlreadyExists`](std::io::ErrorKind::AlreadyExists) will be
-/// returned. There is no possibility of `to` coming into existence at just the
-/// wrong moment and being overwritten.
+/// Unlike a combination of [`try_exists`] and [`rename`], this operation is
+/// atomic on platforms that support it. A potential [TOCTTOU] bug is avoided.
+/// There is no possibility of `to` coming into existence at just the wrong
+/// moment and being overwritten.
 ///
-/// Before this function can be called, support should be checked with
-/// [`rename_exclusive_is_supported`]. If this function is called when it is not
-/// supported, then it may behave the same as `rename`, or it might
-/// non-atomically try to avoid overwriting `to`, or it might crash.
-///
+/// [`try_exists`]: std::path::Path::try_exists
+/// [`rename`]: std::fs::rename
 /// [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
-pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
+///
+/// Performing this operation atomically is not supported on all platforms. If
+/// the operation was successfully performed atomically, then `Ok(true)` will be
+/// returned. Otherwise, `try_exists` and `rename` will be used and `Ok(false)`
+/// will be returned.
+///
+/// # Platform-specific behaviour
+///
+/// On Linux, this calls `renameat2` with `RENAME_NOREPLACE`. On Darwin (macOS,
+/// iOS, watchOS, tvOS), this calls `renamex_np` with `RENAME_EXCL`. On Windows,
+/// this calls `MoveFileExW` with no flags. On all other platforms, this uses
+/// `try_exists` and `rename` which means it will always return `Ok(false)` if
+/// successful.
+///
+/// # Errors
+///
+/// If `to` exists, then [`ErrorKind::AlreadyExists`] will be returned. If the
+/// operation was not atomic, returning an error in this case is not guaranteed.
+///
+/// [`ErrorKind::AlreadyExists`]: std::io::ErrorKind::AlreadyExists
+pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<bool> {
     sys::rename_exclusive(from.as_ref(), to.as_ref())
 }
 
-/// Determine whether [`rename_exclusive`] is supported.
+/// Determine whether [`rename_exclusive`] is atomic.
 ///
-/// Support depends on whether the necessary functions are available at
-/// link-time, and the OS implements the operation for the file system of the
-/// given path. `rename_exclusive` should not be called if this function returns
-/// `Ok(false)`.
-pub fn rename_exclusive_is_supported<P: AsRef<Path>>(path: P) -> Result<bool> {
-    sys::rename_exclusive_is_supported(path.as_ref())
+/// Support for performing this operation atomically depends on whether the
+/// necessary functions are available at link-time, and the OS implements the
+/// operation for the file system of the given path. If this function returns
+/// `Ok(true)`, then a call to `rename_exclusive` at the same path is likely to
+/// return `Ok(true)` rather than `Ok(false)` if it succeeds.
+///
+/// # Platform-specific behaviour
+///
+/// On Linux, this parses `/proc/version` to determine the kernel version and
+/// calls `statfs` to determine the file system type. On Darwin (macOS, iOS,
+/// watchOS, tvOS), this calls `getattrlist` to determine whether the volume at
+/// the path lists `VOL_CAP_INT_RENAME_EXCL` as one of its capabilities. On
+/// Windows, this always returns `Ok(true)` even though that may not be
+/// technically true. On all other platforms, this always returns `Ok(false)`.
+pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
+    sys::rename_exclusive_is_atomic(path.as_ref())
 }
 
-/// A non-atomic version of [`rename_exclusive`].
-///
-/// This is supported on all platforms but of course this operation is not
-/// atomic. This is meant to be used as a fallback for when `rename_exclusive`
-/// is not supported.
-pub fn rename_exclusive_non_atomic<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
-    if to.as_ref().try_exists()? {
-        return Err(Error::from(ErrorKind::AlreadyExists));
+#[cfg(not(target_os = "windows"))]
+fn rename_exclusive_non_atomic(from: &Path, to: &Path) -> Result<()> {
+    if to.try_exists()? {
+        return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
     }
 
     std::fs::rename(from, to)
-}
-
-/// Check whether [`rename_exclusive`] is supported and call
-/// it if so, otherwise fall back on [`rename_exclusive_non_atomic`].
-///
-/// Checking whether the operation is supported may not be particularly fast.
-/// When doing multiple renames under consistent conditions (same OS, same file
-/// system), it may be more efficient to check for support once using
-/// [`rename_exclusive_is_supported`] and then choose which function to use for
-/// the renames.
-pub fn rename_exclusive_checked<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
-    // Probably need to check if `from` and `to` are on the same volume.
-    if sys::rename_exclusive_is_supported(from.as_ref())? {
-        sys::rename_exclusive(from.as_ref(), to.as_ref())
-    } else {
-        rename_exclusive_non_atomic(from, to)
-    }
 }
 
 #[cfg(target_os = "linux")]
@@ -164,11 +130,12 @@ mod sys {
     use std::path::Path;
     use std::io::{Error, ErrorKind, Result};
 
-    pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
-        panic!("rename_exclusive is not supported on this platform");
+    pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
+        rename_exclusive_non_atomic(from, to)?;
+        Ok(false)
     }
 
-    pub fn rename_exclusive_is_supported(_path: &Path) -> Result<bool> {
+    pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
         Ok(false)
     }
 }

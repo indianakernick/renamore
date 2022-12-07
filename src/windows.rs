@@ -20,7 +20,7 @@ fn to_wide(s: &OsStr) -> Vec<u16> {
     wide
 }
 
-pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
+pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
     let from_str = to_wide(from.as_os_str());
     let to_str = to_wide(to.as_os_str());
     let ret = unsafe {
@@ -30,11 +30,11 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     if ret == 0 {
         Err(std::io::Error::last_os_error())
     } else {
-        Ok(())
+        Ok(true)
     }
 }
 
-pub fn rename_exclusive_is_supported(_path: &Path) -> Result<bool> {
+pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {
     // It's supported if the linker doesn't complain. Whether it's actually
     // atomic or not is a more difficult question to answer.
     Ok(true)

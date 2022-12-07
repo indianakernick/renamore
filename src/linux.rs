@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind, Result};
 use std::ffi::{c_char, c_int, c_uint, CString};
 use std::os::unix::prelude::OsStrExt;
 
-// Linking will fail on Linux versions prior to 3.15
+// Linking will fail with glibc versions prior to 2.10.
 
 extern "C" {
     fn renameat2(
@@ -19,7 +19,7 @@ const AT_FDCWD: c_int = -100;
 const RENAME_NOREPLACE: c_uint = 1;
 // const RENAME_EXCHANGE: c_uint = 2;
 
-pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
+pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
     let from_str = CString::new(from.as_os_str().as_bytes())?;
     let to_str = CString::new(to.as_os_str().as_bytes())?;
     let ret = unsafe {
@@ -27,9 +27,17 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     };
 
     if ret == -1 {
-        Err(Error::last_os_error())
+        let error = Error::last_os_error();
+        // EINVAL is returned if `flags` is invalid or the file system doesn't
+        // support the operation.
+        if error.kind() == ErrorKind::InvalidInput {
+            super::rename_exclusive_non_atomic(from, to)?;
+            Ok(false)
+        } else {
+            Err(error)
+        }
     } else {
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -71,11 +79,11 @@ fn get_kernel_version() -> Result<Version> {
         .position(|c| !c.is_ascii_digit())
         .ok_or(ErrorKind::InvalidData)?;
 
-    let major = u16::from_str_radix(&version[major_begin..major_end], 10)
+    let major = version[major_begin..major_end].parse()
         .map_err(|_| ErrorKind::InvalidData)?;
-    let minor = u16::from_str_radix(&version[minor_begin..minor_end], 10)
+    let minor = version[minor_begin..minor_end].parse()
         .map_err(|_| ErrorKind::InvalidData)?;
-    let patch = u16::from_str_radix(&version[patch_begin..patch_end], 10)
+    let patch = version[patch_begin..patch_end].parse()
         .map_err(|_| ErrorKind::InvalidData)?;
 
     Ok(Version::new(major, minor, patch))
@@ -128,7 +136,7 @@ const FS_JFS: c_uint = 0x3153464a; // JFS_SUPER_MAGIC
 const FS_VFAT: c_uint = 0x7c7c6673;
 const FS_BPF: c_uint = 0xcafe4a11; // BPF_FS_MAGIC
 
-pub fn rename_exclusive_is_supported(path: &Path) -> Result<bool> {
+pub fn rename_exclusive_is_atomic(path: &Path) -> Result<bool> {
     let kernel = get_kernel_version()?;
     let fs = get_filesystem_type(path)?;
 

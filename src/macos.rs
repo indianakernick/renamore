@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 
 use std::path::Path;
-use std::io::{Error, Result};
+use std::io::{Error, ErrorKind, Result};
 use std::ffi::{c_char, c_int, c_uint, CString, c_ulong};
 use std::os::unix::prelude::OsStrExt;
 
@@ -18,7 +18,7 @@ extern "C" {
 // const RENAME_SWAP: c_uint = 2;
 const RENAME_EXCL: c_uint = 4;
 
-pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
+pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
     let from_str = CString::new(from.as_os_str().as_bytes())?;
     let to_str = CString::new(to.as_os_str().as_bytes())?;
     let ret = unsafe {
@@ -26,9 +26,17 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     };
 
     if ret == -1 {
-        Err(Error::last_os_error())
+        let error = Error::last_os_error();
+        // EINVAL is returned if `flags` is invalid.
+        // ENOTSUP is returned if the file system doesn't support the operation.
+        if error.kind() == ErrorKind::InvalidInput || error.kind() == ErrorKind::Unsupported {
+            super::rename_exclusive_non_atomic(from, to)?;
+            Ok(false)
+        } else {
+            Err(error)
+        }
     } else {
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -75,7 +83,7 @@ extern "C" {
     ) -> c_int;
 }
 
-pub fn rename_exclusive_is_supported(path: &Path) -> Result<bool> {
+pub fn rename_exclusive_is_atomic(path: &Path) -> Result<bool> {
     let path_str = CString::new(path.as_os_str().as_bytes())?;
     let mut list = attrlist {
         bitmapcount: ATTR_BIT_MAP_COUNT,
