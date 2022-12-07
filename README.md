@@ -34,10 +34,10 @@ fn main() -> Result<()> {
     let to = PathBuf::from("new.txt");
 
     if renamore::rename_exclusive(&from, &to)? {
-        // `new.txt` will definitely not be overwritten.
+        // `new.txt` was definitely not overwritten.
         println!("The operation was atomic");
     } else {
-        // `new.txt` will probably not be overwritten.
+        // `new.txt` was probably not overwritten.
         println!("The operation was not atomic");
     }
 
