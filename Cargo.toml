@@ -2,7 +2,7 @@
 name = "renamore"
 version = "0.1.0"
 authors = ["Indiana Kernick <indiana.kernick@gmail.com>"]
-description = "More ways to rename files"
+description = "More ways to rename files."
 categories = ["filesystem"]
 keywords = ["rename", "file"]
 homepage = "https://github.com/indianakernick/renamore"
