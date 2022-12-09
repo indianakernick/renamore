@@ -6,9 +6,9 @@
 //! Sometimes, that's not enough. Consider the example of renaming a file but
 //! aborting the operation if something already exists at the destination path.
 //! That can be achieved using the Rust standard library but ensuring that the
-//! operation is atomic can only be achieved using platform-specific APIs.
-//! Without using platform-specific APIs, a [TOCTTOU] bug can be introduced.
-//! This library aims to provide a cross-platform interface to these APIs.
+//! operation is atomic requires platform-specific APIs. Without using
+//! platform-specific APIs, a [TOCTTOU] bug can be introduced. This library aims
+//! to provide a cross-platform interface to these APIs.
 //!
 //! [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 //!
@@ -115,7 +115,8 @@ pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
     sys::rename_exclusive_is_atomic(path.as_ref())
 }
 
-/// Rename a file without overwriting the destination path if it exists.
+/// Rename a file without overwriting the destination path if it exists, using a
+/// non-atomic fallback if necessary.
 ///
 /// This is similar to [`rename_exclusive`] except that if performing the
 /// operation atomically is not supported, then a non-atomic fallback

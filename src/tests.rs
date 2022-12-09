@@ -19,7 +19,7 @@ impl Drop for CurrentDirectory {
     }
 }
 
-fn is_exists_error(result: Result<()>) -> bool {
+fn is_exists_error<T>(result: Result<T>) -> bool {
     if let Err(e) = result {
         e.kind() == ErrorKind::AlreadyExists
     } else {
@@ -119,9 +119,7 @@ fn rename_exclusive_rel() -> Result<()> {
 
 #[test]
 fn rename_exclusive_is_atomic() -> Result<()> {
-    let is_supported = super::rename_exclusive_is_atomic(std::env::current_dir()?)?;
-
-    if is_supported {
+    if super::rename_exclusive_is_atomic(std::env::current_dir()?)? {
         println!("rename_exclusive is supported");
     } else {
         println!("rename_exclusive is not supported");
