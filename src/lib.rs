@@ -12,23 +12,30 @@
 //!
 //! [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 //!
-//! ## Example
+//! ## Examples
 //!
 //! Renaming a file without the possibility of accidentally overwriting anything
 //! can be done using [`rename_exclusive`]. It should be noted that this feature
 //! is not supported by all combinations of operation system and file system.
-//! The return value will indicate whether the operation was performed
-//! atomically or whether a non-atomic fallback was used.
+//! `rename_exclusive` will fail if it can't be done atomically.
 //!
 //! ```no_run
 //! use std::io::Result;
-//! use std::path::PathBuf;
 //!
 //! fn main() -> Result<()> {
-//!     let from = PathBuf::from("old.txt");
-//!     let to = PathBuf::from("new.txt");
+//!     renamore::rename_exclusive("old.txt", "new.txt")
+//! }
+//! ```
 //!
-//!     if renamore::rename_exclusive(&from, &to)? {
+//! Alternatively, [`rename_exclusive_fallback`] can be used. This will try to
+//! perform the operation atomically, and use a non-atomic fallback if that's
+//! not supported. The return value will indicate what happened.
+//!
+//! ```no_run
+//! use std::io::Result;
+//!
+//! fn main() -> Result<()> {
+//!     if renamore::rename_exclusive_fallback("old.txt", "new.txt")? {
 //!         // `new.txt` was definitely not overwritten.
 //!         println!("The operation was atomic");
 //!     } else {
@@ -41,49 +48,48 @@
 //! ```
 
 use std::path::Path;
-use std::io::Result;
+use std::io::{Error, ErrorKind, Result};
 
 /// Rename a file without overwriting the destination path if it exists.
 ///
 /// Unlike a combination of [`try_exists`] and [`rename`], this operation is
-/// atomic on platforms that support it. A potential [TOCTTOU] bug is avoided.
-/// There is no possibility of `to` coming into existence at just the wrong
-/// moment and being overwritten.
+/// atomic. A potential [TOCTTOU] bug is avoided. There is no possibility of
+/// `to` coming into existence at just the wrong moment and being overwritten.
 ///
 /// [`try_exists`]: std::path::Path::try_exists
 /// [`rename`]: std::fs::rename
 /// [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 ///
-/// Performing this operation atomically is not supported on all platforms. If
-/// the operation was successfully performed atomically, then `Ok(true)` will be
-/// returned. Otherwise, `try_exists` and `rename` will be used and `Ok(false)`
-/// will be returned.
-///
 /// # Platform-specific behaviour
 ///
 /// On Linux, this calls `renameat2` with `RENAME_NOREPLACE`. On Darwin (macOS,
 /// iOS, watchOS, tvOS), this calls `renamex_np` with `RENAME_EXCL`. On Windows,
-/// this calls `MoveFileExW` with no flags. On all other platforms, this uses
-/// `try_exists` and `rename` which means it will always return `Ok(false)` if
-/// successful.
+/// this calls `MoveFileExW` with no flags. On all other platforms, this returns
+/// [`ErrorKind::Unsupported`] unconditionally.
 ///
 /// # Errors
 ///
-/// If `to` exists, then [`ErrorKind::AlreadyExists`] will be returned. If the
-/// operation was not atomic, returning an error in this case is not guaranteed.
+/// Performing this operation atomically is not supported on all platforms. If
+/// it's not supported but the rename request is otherwise valid, then
+/// [`ErrorKind::Unsupported`] will be returned. If the operation is supported
+/// but a file at `to` exists, then [`ErrorKind::AlreadyExists`] will be
+/// returned.
 ///
+/// [`ErrorKind::Unsupported`]: std::io::ErrorKind::Unsupported
 /// [`ErrorKind::AlreadyExists`]: std::io::ErrorKind::AlreadyExists
-pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<bool> {
+pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<()> {
     sys::rename_exclusive(from.as_ref(), to.as_ref())
 }
 
-/// Determine whether [`rename_exclusive`] is atomic.
+/// Determine whether an atomic [`rename_exclusive`] is supported.
 ///
 /// Support for performing this operation atomically depends on whether the
 /// necessary functions are available at link-time, and the OS implements the
 /// operation for the file system of the given path. If this function returns
-/// `Ok(true)`, then a call to `rename_exclusive` at the same path is likely to
-/// return `Ok(true)` rather than `Ok(false)` if it succeeds.
+/// `Ok(true)`, then a call to `rename_exclusive` at the same path is unlikely
+/// to return [`ErrorKind::Unsupported`] if it fails.
+///
+/// [`ErrorKind::Unsupported`]: std::io::ErrorKind::Unsupported
 ///
 /// # Platform-specific behaviour
 ///
@@ -93,14 +99,63 @@ pub fn rename_exclusive<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Resul
 /// the path lists `VOL_CAP_INT_RENAME_EXCL` as one of its capabilities. On
 /// Windows, this always returns `Ok(true)` even though that may not be
 /// technically true. On all other platforms, this always returns `Ok(false)`.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use std::io::Result;
+/// # fn main() -> Result<()> {
+/// if !renamore::rename_exclusive_is_atomic(".")? {
+///     println!("Warning: atomically renaming without overwriting is not supported!");
+/// }
+/// # Ok(())
+/// # }
+/// ```
 pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
     sys::rename_exclusive_is_atomic(path.as_ref())
 }
 
-#[cfg(not(target_os = "windows"))]
+/// Rename a file without overwriting the destination path if it exists.
+///
+/// This is similar to [`rename_exclusive`] except that if performing the
+/// operation atomically is not supported, then a non-atomic fallback
+/// implementation based on [`try_exists`] and [`rename`] will be used.
+///
+/// # Examples
+///
+/// ```no_run
+/// # fn main() -> std::io::Result<()> {
+/// if renamore::rename_exclusive_fallback("old.txt", "new.txt")? {
+///     // `new.txt` was definitely not overwritten.
+///     println!("The operation was atomic");
+/// } else {
+///     // `new.txt` was probably not overwritten.
+///     println!("The operation was not atomic");
+/// }
+/// # Ok(())
+/// # }
+/// ```
+///
+/// [`try_exists`]: std::path::Path::try_exists
+/// [`rename`]: std::fs::rename
+pub fn rename_exclusive_fallback<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<bool> {
+    fn inner(from: &Path, to: &Path) -> Result<bool> {
+        if let Err(e) = sys::rename_exclusive(from, to) {
+            if e.kind() == ErrorKind::Unsupported {
+                rename_exclusive_non_atomic(from, to)?;
+                return Ok(false);
+            }
+            Err(e)
+        } else {
+            Ok(true)
+        }
+    }
+    inner(from.as_ref(), to.as_ref())
+}
+
 fn rename_exclusive_non_atomic(from: &Path, to: &Path) -> Result<()> {
     if to.try_exists()? {
-        return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
+        return Err(Error::from(ErrorKind::AlreadyExists));
     }
 
     std::fs::rename(from, to)
@@ -130,9 +185,8 @@ mod sys {
     use std::path::Path;
     use std::io::{Error, ErrorKind, Result};
 
-    pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
-        rename_exclusive_non_atomic(from, to)?;
-        Ok(false)
+    pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
+        Err(Error::from(ErrorKind::Unsupported))
     }
 
     pub fn rename_exclusive_is_atomic(_path: &Path) -> Result<bool> {

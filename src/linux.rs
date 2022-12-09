@@ -19,7 +19,7 @@ const AT_FDCWD: c_int = -100;
 const RENAME_NOREPLACE: c_uint = 1;
 // const RENAME_EXCHANGE: c_uint = 2;
 
-pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
+pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     let from_str = CString::new(from.as_os_str().as_bytes())?;
     let to_str = CString::new(to.as_os_str().as_bytes())?;
     let ret = unsafe {
@@ -31,13 +31,12 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
         // EINVAL is returned if `flags` is invalid or the file system doesn't
         // support the operation.
         if error.kind() == ErrorKind::InvalidInput {
-            super::rename_exclusive_non_atomic(from, to)?;
-            Ok(false)
+            Err(Error::from(ErrorKind::Unsupported))
         } else {
             Err(error)
         }
     } else {
-        Ok(true)
+        Ok(())
     }
 }
 

@@ -18,7 +18,7 @@ extern "C" {
 // const RENAME_SWAP: c_uint = 2;
 const RENAME_EXCL: c_uint = 4;
 
-pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
+pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
     let from_str = CString::new(from.as_os_str().as_bytes())?;
     let to_str = CString::new(to.as_os_str().as_bytes())?;
     let ret = unsafe {
@@ -29,14 +29,13 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> Result<bool> {
         let error = Error::last_os_error();
         // EINVAL is returned if `flags` is invalid.
         // ENOTSUP is returned if the file system doesn't support the operation.
-        if error.kind() == ErrorKind::InvalidInput || error.kind() == ErrorKind::Unsupported {
-            super::rename_exclusive_non_atomic(from, to)?;
-            Ok(false)
+        if error.kind() == ErrorKind::InvalidInput {
+            Err(Error::from(ErrorKind::Unsupported))
         } else {
             Err(error)
         }
     } else {
-        Ok(true)
+        Ok(())
     }
 }
 

@@ -15,25 +15,34 @@ This library aims to provide a cross-platform interface to these APIs.
 [`std::fs::rename`]: https://doc.rust-lang.org/std/fs/fn.rename.html
 [TOCTTOU]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
 
-## Example
+## Examples
 
 Renaming a file without the possibility of accidentally overwriting anything
 can be done using [`rename_exclusive`]. It should be noted that this feature
 is not supported by all combinations of operation system and file system.
-The return value will indicate whether the operation was performed
-atomically or whether a non-atomic fallback was used.
+`rename_exclusive` will fail if it can't be done atomically.
 
 [`rename_exclusive`]: https://docs.rs/renamore/latest/renamore/fn.rename_exclusive.html
 
 ```rust
 use std::io::Result;
-use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    let from = PathBuf::from("old.txt");
-    let to = PathBuf::from("new.txt");
+    renamore::rename_exclusive("old.txt", "new.txt")
+}
+```
 
-    if renamore::rename_exclusive(&from, &to)? {
+Alternatively, [`rename_exclusive_fallback`] can be used. This will try to
+perform the operation atomically, and use a non-atomic fallback if that's
+not supported. The return value will indicate what happened.
+
+[`rename_exclusive_fallback`]: https://docs.rs/renamore/latest/renamore/fn.rename_exclusive_fallback.html
+
+```rust
+use std::io::Result;
+
+fn main() -> Result<()> {
+    if renamore::rename_exclusive_fallback("old.txt", "new.txt")? {
         // `new.txt` was definitely not overwritten.
         println!("The operation was atomic");
     } else {

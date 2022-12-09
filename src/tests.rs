@@ -19,7 +19,7 @@ impl Drop for CurrentDirectory {
     }
 }
 
-fn is_exists_error(result: Result<bool>) -> bool {
+fn is_exists_error(result: Result<()>) -> bool {
     if let Err(e) = result {
         e.kind() == ErrorKind::AlreadyExists
     } else {
