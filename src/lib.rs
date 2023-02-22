@@ -189,7 +189,7 @@ mod sys {
     use std::path::Path;
     use std::io::{Error, ErrorKind, Result};
 
-    pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
+    pub fn rename_exclusive(_from: &Path, _to: &Path) -> Result<()> {
         Err(Error::from(ErrorKind::Unsupported))
     }
 

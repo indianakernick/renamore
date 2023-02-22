@@ -4,6 +4,20 @@ fn main() {
     }
 }
 
+#[cfg(feature = "always-supported")]
+fn supported() -> bool {
+    true
+}
+
+#[cfg(feature = "always-fallback")]
+fn supported() -> bool {
+    false
+}
+
+#[cfg(not(any(
+    feature = "always-supported",
+    feature = "always-fallback",
+)))]
 fn supported() -> bool {
     use std::process::Command;
 

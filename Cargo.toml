@@ -16,5 +16,11 @@ edition = "2021"
 tempfile = "3"
 
 [build-dependencies]
+# It would be nice if the cc dependency could be removed if one of the features
+# was enabled but that doesn't seem possible.
 cc = "1"
 tempfile = "3"
+
+[features]
+always-supported = []
+always-fallback = []
