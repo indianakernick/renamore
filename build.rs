@@ -1,24 +1,25 @@
 fn main() {
-    if let Ok(true) = check() {
+    if supported() {
         println!("cargo:rustc-cfg=linker");
     }
 }
 
-fn check() -> Result<bool, Box<dyn std::error::Error>> {
+fn supported() -> bool {
     use std::process::Command;
 
-    let dir = tempfile::tempdir()?;
+    let dir = tempfile::tempdir().unwrap();
     let test_c = dir.path().join("test.c");
 
     let compiler = cc::Build::new()
         .cargo_metadata(false)
         .get_compiler();
     let compiler_path = compiler.path();
+    let target = std::env::var("TARGET").unwrap();
 
     // It might be better to #include the relevant headers and check that the
     // argument types are as expected.
 
-    if cfg!(target_os = "linux") {
+    if target.contains("linux") {
         std::fs::write(&test_c, b"
             void renameat2();
             void statfs();
@@ -27,28 +28,29 @@ fn check() -> Result<bool, Box<dyn std::error::Error>> {
                 renameat2();
                 statfs();
             }"
-        )?;
+        ).unwrap();
 
         let status = Command::new(compiler_path)
             .current_dir(dir.path())
             .arg("test.c")
-            .status()?;
+            .status()
+            .unwrap();
 
         if status.success() {
-            return Ok(true);
+            return true;
         }
 
         // musl doesn't expose a wrapper around the renameat2 syscall but it
         // does have the syscall number definition. So we're providing our own
         // wrapper. Although, the syscall might not exist and we'd get an error
         // instead of using the fallback in that case.
-        if cfg!(target_env="musl") {
+        if target.contains("musl") {
             cc::Build::new()
                 .file("src/linux-musl.c")
                 .compile("linux-musl");
-            return Ok(true);
+            return true;
         }
-    } else if cfg!(target_vendor = "apple") {
+    } else if target.contains("apple") {
         std::fs::write(&test_c, b"
             void renamex_np();
             void getattrlist();
@@ -57,34 +59,36 @@ fn check() -> Result<bool, Box<dyn std::error::Error>> {
                 renamex_np();
                 getattrlist();
             }
-        ")?;
+        ").unwrap();
 
         let status = Command::new(compiler_path)
             .current_dir(dir.path())
             .arg("test.c")
-            .status()?;
+            .status()
+            .unwrap();
 
         if status.success() {
-            return Ok(true);
+            return true;
         }
-    } else if cfg!(target_os = "windows") {
+    } else if target.contains("windows") {
         std::fs::write(&test_c, b"
             void MoveFileExW();
 
             int main() {
                 MoveFileExW();
             }
-        ")?;
+        ").unwrap();
 
         let status = Command::new(compiler_path)
             .current_dir(dir.path())
             .arg("test.c")
-            .status()?;
+            .status()
+            .unwrap();
 
         if status.success() {
-            return Ok(true);
+            return true;
         }
     }
 
-    Ok(false)
+    false
 }
