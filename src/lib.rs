@@ -46,6 +46,20 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Platform-specific behaviour
+//!
+//! On Linux, the `renameat2` syscall is used. A wrapper around this syscall is
+//! provided by glibc since version 2.28 but not musl (yet?). The existence of
+//! the wrapper is checked at build time and a wrapper is provided if one isn't
+//! found. In case something goes wrong, there are two features that can be used
+//! to bypass this mechanism.
+//!
+//!  - `always-supported`. Assume that `renameat2` exists.
+//!  - `always-fallback`. Assume that `renameat2` doesn't exist.
+//!
+//! Hopefully using these features shouldn't be necessary. If they do become
+//! necessary, then there might be a bug.
 
 use std::path::Path;
 use std::io::{Error, ErrorKind, Result};
