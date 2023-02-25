@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind, Result};
 use std::ffi::{c_char, c_int, c_uint, CString};
 use std::os::unix::prelude::OsStrExt;
 
-// Linking will fail with glibc versions prior to 2.10.
+// Linking will fail with glibc versions prior to 2.28.
 
 extern "C" {
     fn renameat2(

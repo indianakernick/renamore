@@ -64,44 +64,6 @@ fn supported() -> bool {
                 .compile("linux-musl");
             return true;
         }
-    } else if target.contains("apple") {
-        std::fs::write(&test_c, b"
-            void renamex_np();
-            void getattrlist();
-
-            int main() {
-                renamex_np();
-                getattrlist();
-            }
-        ").unwrap();
-
-        let status = Command::new(compiler_path)
-            .current_dir(dir.path())
-            .arg("test.c")
-            .status()
-            .unwrap();
-
-        if status.success() {
-            return true;
-        }
-    } else if target.contains("windows") {
-        std::fs::write(&test_c, b"
-            void MoveFileExW();
-
-            int main() {
-                MoveFileExW();
-            }
-        ").unwrap();
-
-        let status = Command::new(compiler_path)
-            .current_dir(dir.path())
-            .arg("test.c")
-            .status()
-            .unwrap();
-
-        if status.success() {
-            return true;
-        }
     }
 
     false

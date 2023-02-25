@@ -167,23 +167,20 @@ mod linux;
 #[cfg(all(target_os = "linux", linker))]
 use linux as sys;
 
-#[cfg(all(target_vendor = "apple", linker))]
+#[cfg(target_vendor = "apple")]
 mod macos;
-#[cfg(all(target_vendor = "apple", linker))]
+#[cfg(target_vendor = "apple")]
 use macos as sys;
 
-#[cfg(all(target_os = "windows", linker))]
+#[cfg(target_os = "windows")]
 mod windows;
-#[cfg(all(target_os = "windows", linker))]
+#[cfg(target_os = "windows")]
 use windows as sys;
 
-#[cfg(not(all(
-    any(
-        target_os = "linux",
-        target_vendor = "apple",
-        target_os = "windows",
-    ),
-    linker,
+#[cfg(not(any(
+    all(target_os = "linux", linker),
+    target_vendor = "apple",
+    target_os = "windows",
 )))]
 mod sys {
     use std::path::Path;
