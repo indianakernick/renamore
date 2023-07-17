@@ -19,7 +19,7 @@ to provide a cross-platform interface to these APIs.
 
 Renaming a file without the possibility of accidentally overwriting anything
 can be done using [`rename_exclusive`]. It should be noted that this feature
-is not supported by all combinations of operation system and file system.
+is not supported by all combinations of operating system and file system.
 `rename_exclusive` will fail if it can't be done atomically.
 
 [`rename_exclusive`]: https://docs.rs/renamore/latest/renamore/fn.rename_exclusive.html

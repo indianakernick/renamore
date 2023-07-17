@@ -16,7 +16,7 @@
 //!
 //! Renaming a file without the possibility of accidentally overwriting anything
 //! can be done using [`rename_exclusive`]. It should be noted that this feature
-//! is not supported by all combinations of operation system and file system.
+//! is not supported by all combinations of operating system and file system.
 //! `rename_exclusive` will fail if it can't be done atomically.
 //!
 //! ```no_run
@@ -136,6 +136,9 @@ pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
 /// operation atomically is not supported, then a non-atomic fallback
 /// implementation based on [`try_exists`] and [`rename`] will be used.
 ///
+/// [`try_exists`]: std::path::Path::try_exists
+/// [`rename`]: std::fs::rename
+///
 /// # Examples
 ///
 /// ```no_run
@@ -150,9 +153,6 @@ pub fn rename_exclusive_is_atomic<P: AsRef<Path>>(path: P) -> Result<bool> {
 /// # Ok(())
 /// # }
 /// ```
-///
-/// [`try_exists`]: std::path::Path::try_exists
-/// [`rename`]: std::fs::rename
 pub fn rename_exclusive_fallback<F: AsRef<Path>, T: AsRef<Path>>(from: F, to: T) -> Result<bool> {
     fn inner(from: &Path, to: &Path) -> Result<bool> {
         if let Err(e) = sys::rename_exclusive(from, to) {
