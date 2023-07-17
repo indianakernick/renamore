@@ -1,6 +1,6 @@
 [package]
 name = "renamore"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Indiana Kernick <indiana.kernick@gmail.com>"]
 description = "More ways to rename files."
 categories = ["filesystem"]
